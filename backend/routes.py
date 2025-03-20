@@ -1,0 +1,138 @@
+from app import db ,app
+
+from flask import request, jsonify
+from models import Jobs,User
+from flask_jwt_extended import create_access_token,get_jwt_identity,jwt_required
+from datetime import datetime 
+
+#Get all Jobs
+
+@app.route("/api/jobs",methods=['GET'])
+def get_jobs():
+    jobs=Jobs.query.all()
+    result=[job.to_json() for job in jobs]
+    return jsonify(result)
+
+
+#create a job
+@app.route("/api/jobs",methods=['POST'])
+@jwt_required()
+def create_jobs():
+    try:
+        identity=get_jwt_identity()
+        print("Here is the identity",identity)
+        print(identity["role"])
+        if identity["role"] not in ("admin","professional"):
+            return jsonify({"msg":"Job can only be created by the admin or Professional"})
+        
+        data=request.get_json()
+        required_fields=['title','budget','description']
+        for field in required_fields:
+            if field not in data:
+                return{"msg":f'missing required field:{field}'}
+
+        title=data.get("title")
+        description=data.get("description")
+        budget=data.get("budget")
+        skills=data.get("skills")
+
+        new_job=Jobs(title=title,description=description,budget=budget,skills=skills,user_id=identity["id"])
+        db.session.add(new_job)
+        db.session.commit()
+        return jsonify({"msg":"Job added succesfully"}),201
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error":str(e)}),500
+
+#Delete a Job
+@app.route("/api/delete_job/<int:id>",methods=['DELETE'])
+def delete_job(id):
+    try:
+        #job_to_be_deleted=Job.query.get_or_404(id) It gives that if record is not found, it automatically gives an error, hence making the specific error reduntant of use 
+        job_to_be_deleted=Jobs.query.get(id)
+        if job_to_be_deleted is None:
+            return jsonify ({"msg":"The Paticular Job has not been found"})
+
+        db.session.delete(job_to_be_deleted)
+        db.session.commit()
+
+        #jsonify({"msg":f'The said record has been delete{job_to_be_deleted}'})
+        return jsonify({"msg":"Job Deleted"})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify ({"error":str(e)}),500
+    
+
+#update Job
+@app.route("/api/update_jobs/<int:id>",methods=['PATCH'])
+def update_jobs(id):
+    try:
+        job_to_be_update=Jobs.query.get(id)
+        if job_to_be_update is None:
+            return jsonify({"msg":"No record found of such Job"})
+        data=request.get_json()
+
+        job_to_be_update.title=data.get("title",job_to_be_update.title)
+        job_to_be_update.description=data.get("description",job_to_be_update.description)
+        job_to_be_update.budget=data.get("budget",job_to_be_update.budget)
+
+        db.session.commit()
+        return jsonify ({"msg":"The data has been updated"})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify ({"error":str(e)})
+    
+@app.route("/api/users",methods=['GET'])
+def users():
+    Users=User.query.all()
+    result=[user.to_json() for user in Users]
+    return jsonify(result)
+
+@app.route('/api/signup',methods=['POST'])
+def signup():
+    data=request.get_json()
+
+    username=data.get('username')
+    name=data.get('name')
+    email=data.get('email')
+    password_hash=data.get('password_hash')
+    role=data.get('role')
+
+    existing_user=User.query.filter_by(email=email).first()
+    if existing_user:
+        return jsonify({"msg":"The user already exists"})
+    
+    required_fields=['username','name','email','password_hash','role']
+    for field in required_fields:
+        if field not in data:
+            return jsonify({"error":f'A field is missing:{field}'})
+
+    new_user=User(username=username,name=name,email=email,role=role)
+    new_user.set_password(password_hash)
+
+    db.session.add(new_user)
+    db.session.commit()
+
+    return jsonify({"msg":"The User has been added"})
+
+
+@app.route("/api/login",methods=['POST'])
+def login():
+    data=request.get_json()
+    username=data.get('username')
+    password=data.get('password')
+    
+    user_in=User.query.filter_by(username=username).first()
+    if not user_in or not user_in.check_password(password):
+        return jsonify ({"msg":"Either password or username incorrect"})
+    
+    access_token=create_access_token(identity={"id":user_in.id,"role":user_in.role})
+    return jsonify ({"msg":"Hurray!!You are logged in","access_token":access_token})
+
+@app.route("/api/view_job/<int:id>",methods=['POST'])
+def view_job(id):
+    job=Jobs.query.get(id)
+    if job is None:
+        return jsonify({"msg":"The Job is not found"})
+    return jsonify(job.to_json())
+        
