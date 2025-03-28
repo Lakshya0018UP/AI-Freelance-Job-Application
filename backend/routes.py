@@ -136,7 +136,7 @@ def view_job(id):
         return jsonify({"msg":"The Job is not found"})
     return jsonify(job.to_json())
 
-#(TODO) To create that the user has already applied for the job(if he has applied for it)
+#(TODO) To check that the user has already applied for the job(if he has applied for it)
 @app.route("/api/apply/<int:id>",methods=['POST'])
 @jwt_required()
 def applied(id):
@@ -145,6 +145,9 @@ def applied(id):
         return jsonify({"msg":"The Job does not exist"}),404
     
     user_in=get_jwt_identity()
+    user_already=applied_for.query.filter_by(job_id=id,username=user_in['username']).first()
+    if user_already:
+        return jsonify({"error":"You have already applied for this role"}),404
     user_applied=applied_for(username=user_in['username'],name=user_in['name'],email=user_in['email'],job_id=id)
     db.session.add(user_applied)
     db.session.commit()
