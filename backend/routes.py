@@ -1,7 +1,7 @@
 from app import db ,app
 
 from flask import request, jsonify
-from models import Jobs,User
+from models import Jobs,User,applied_for
 from flask_jwt_extended import create_access_token,get_jwt_identity,jwt_required
 from datetime import datetime 
 
@@ -126,7 +126,7 @@ def login():
     if not user_in or not user_in.check_password(password):
         return jsonify ({"msg":"Either password or username incorrect"})
     
-    access_token=create_access_token(identity={"id":user_in.id,"role":user_in.role})
+    access_token=create_access_token(identity={"id":user_in.id,"role":user_in.role,"username":user_in.username,"email":user_in.email,"name":user_in.name})
     return jsonify ({"msg":"Hurray!!You are logged in","access_token":access_token})
 
 @app.route("/api/view_job/<int:id>",methods=['POST'])
@@ -135,4 +135,31 @@ def view_job(id):
     if job is None:
         return jsonify({"msg":"The Job is not found"})
     return jsonify(job.to_json())
+
+#(TODO) To create that the user has already applied for the job(if he has applied for it)
+@app.route("/api/apply/<int:id>",methods=['POST'])
+@jwt_required()
+def applied(id):
+    applied_job=Jobs.query.get(id)
+    if applied_job is None:
+        return jsonify({"msg":"The Job does not exist"}),404
+    
+    user_in=get_jwt_identity()
+    user_applied=applied_for(username=user_in['username'],name=user_in['name'],email=user_in['email'],job_id=id)
+    db.session.add(user_applied)
+    db.session.commit()
+    return jsonify({"msg":"You have applied for the Job"}),201
+
+@app.route("/api/applied_jobs/<int:id>",methods=['GET'])
+@jwt_required()
+def applied_jobs(id):
+    user_in=get_jwt_identity()
+    if user_in['role'] not in ("admin","professional"):
+        return jsonify({"msg":"You are not authorized to check this out"}),404
+    all_applies=applied_for.query.filter_by(job_id=id).all()
+    if all_applies is None:
+        return jsonify({"msg":"No one has applied for this job"})
+    result=[apply.to_json() for apply in all_applies]
+    return jsonify(result)
+
         

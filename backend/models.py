@@ -46,3 +46,27 @@ class User(db.Model):
             "password_hash":self.password_hash,
             "role":self.role
         }
+    
+
+class applied_for(db.Model):
+    id=db.Column(db.Integer,primary_key=True)
+    job_id=db.Column(db.Integer,db.ForeignKey('jobs.id'),nullable=False)
+    username=db.Column(db.String(80),nullable=False)
+    name=db.Column(db.String(100),nullable=False)
+    email=db.Column(db.String(120),nullable=False)
+    date_created=db.Column(db.DateTime,default=datetime.utcnow())
+    status=db.Column(db.String(20),default='applied')
+
+    def to_json(self):
+        return{
+            "id":self.id,
+            "job_id":self.job_id,
+            "username":self.username,
+            "name":self.name,
+            "email":self.email,
+            "date_created":self.date_created,
+            "status":self.status
+
+
+        }
+    
