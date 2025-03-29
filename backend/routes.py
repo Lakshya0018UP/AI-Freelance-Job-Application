@@ -2,7 +2,7 @@ from app import db ,app
 
 from flask import request, jsonify
 from models import Jobs,User,applied_for
-from flask_jwt_extended import create_access_token,get_jwt_identity,jwt_required
+from flask_jwt_extended import create_access_token,get_jwt_identity,jwt_required,create_refresh_token
 from datetime import datetime 
 
 #Get all Jobs
@@ -127,9 +127,11 @@ def login():
         return jsonify ({"msg":"Either password or username incorrect"})
     
     access_token=create_access_token(identity={"id":user_in.id,"role":user_in.role,"username":user_in.username,"email":user_in.email,"name":user_in.name})
-    return jsonify ({"msg":"Hurray!!You are logged in","access_token":access_token})
+    refresh_token=create_refresh_token(identity={"id":user_in.id,"role":user_in.role,"username":user_in.username,"email":user_in.email,"name":user_in.name})
+    return jsonify ({"msg":"Hurray!!You are logged in","access_token":access_token,"refresh_token":refresh_token}),200
 
 @app.route("/api/view_job/<int:id>",methods=['POST'])
+@jwt_required()
 def view_job(id):
     job=Jobs.query.get(id)
     if job is None:
@@ -180,3 +182,20 @@ def update_status(id):
     applied.status=data.get("status",applied.status)
     db.session.commit()
     return jsonify({"msg":"The status has been updated"}),200
+
+@app.route("/api/view_profile",methods=['GET'])
+@jwt_required()
+def view_profile():
+    user_in=get_jwt_identity()
+    return jsonify(user_in),200
+
+@app.route("/api/refresh",methods=['GET'])
+@jwt_required(refresh=True)
+def refresh():
+    identity=get_jwt_identity()
+    new_access_token=create_access_token(identity=identity)
+
+    return jsonify({"access_token":new_access_token}),200
+# @app.route("/api/logout",methods=['POST'])
+# @jwt_required()
+# def logout()
