@@ -136,7 +136,6 @@ def view_job(id):
         return jsonify({"msg":"The Job is not found"})
     return jsonify(job.to_json())
 
-#(TODO) To check that the user has already applied for the job(if he has applied for it)
 @app.route("/api/apply/<int:id>",methods=['POST'])
 @jwt_required()
 def applied(id):
@@ -157,7 +156,7 @@ def applied(id):
 @jwt_required()
 def applied_jobs(id):
     user_in=get_jwt_identity()
-    if user_in['role'] not in ("admin","professional"):
+    if user_in['role'] not in ["admin","professional"]:
         return jsonify({"msg":"You are not authorized to check this out"}),404
     all_applies=applied_for.query.filter_by(job_id=id).all()
     if all_applies is None:
@@ -165,4 +164,19 @@ def applied_jobs(id):
     result=[apply.to_json() for apply in all_applies]
     return jsonify(result)
 
-        
+#TODO : Add the functionality update the status of the job
+@app.route("/api/update_status/<int:id>",methods=['PATCH'])
+@jwt_required()
+def update_status(id):
+    user_in=get_jwt_identity()
+    if user_in['role'] not in ['admin','professional']:
+        return jsonify({"msg":"You are not authotized for this page"}),401
+    
+    applied=applied_for.query.get(id)
+    if applied is None:
+        return jsonify({"msg":"The paticular job doesnt exist"}),404
+    
+    data=request.get_json()
+    applied.status=data.get("status",applied.status)
+    db.session.commit()
+    return jsonify({"msg":"The status has been updated"}),200
