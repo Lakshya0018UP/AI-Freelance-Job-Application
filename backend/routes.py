@@ -46,12 +46,17 @@ def create_jobs():
 
 #Delete a Job
 @app.route("/api/delete_job/<int:id>",methods=['DELETE'])
+@jwt_required()
 def delete_job(id):
     try:
+        identity=get_jwt_identity()
+        if identity['role'] not in ['admin','professional']:
+            return jsonify ({"msg":"You are not authorized to delete this Job"}),401
+
         #job_to_be_deleted=Job.query.get_or_404(id) It gives that if record is not found, it automatically gives an error, hence making the specific error reduntant of use 
         job_to_be_deleted=Jobs.query.get(id)
         if job_to_be_deleted is None:
-            return jsonify ({"msg":"The Paticular Job has not been found"})
+            return jsonify ({"msg":"The Paticular Job has not been found"}),404
 
         db.session.delete(job_to_be_deleted)
         db.session.commit()
