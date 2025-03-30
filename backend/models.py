@@ -48,7 +48,7 @@ class User(db.Model):
         }
     
 
-class applied_for(db.Model):
+class Applied(db.Model):
     id=db.Column(db.Integer,primary_key=True)
     job_id=db.Column(db.Integer,db.ForeignKey('jobs.id'),nullable=False)
     username=db.Column(db.String(80),nullable=False)
@@ -56,6 +56,9 @@ class applied_for(db.Model):
     email=db.Column(db.String(120),nullable=False)
     date_created=db.Column(db.DateTime,default=datetime.utcnow())
     status=db.Column(db.String(20),default='applied')
+    proposal=db.Column(db.Text,nullable=False)
+    freelancer_id=db.Column(db.Integer,db.ForeignKey('user.id'),nullable=False)
+    bid_amount=db.Column(db.Float,nullable=False)
 
     def to_json(self):
         return{
@@ -65,7 +68,10 @@ class applied_for(db.Model):
             "name":self.name,
             "email":self.email,
             "date_created":self.date_created,
-            "status":self.status
+            "status":self.status,
+            "proposal":self.proposal,
+            "freelancer_id":self.freelancer_id,
+            "bid_amount":self.bid_amount
 
 
         }

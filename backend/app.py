@@ -18,7 +18,7 @@ app.config["JWT_TOKEN_LOCATION"] = ["headers", "cookies"]
 app.config['JWT_VERIFY_SUB'] = False
 db=SQLAlchemy(app)
 jwt = JWTManager(app)
-migrate = Migrate(app, db)
+migrate = Migrate(app, db,render_as_batch=True)
 import routes
 import auth_routes
 

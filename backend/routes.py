@@ -1,7 +1,7 @@
 from app import db ,app
 
 from flask import request, jsonify
-from models import Jobs,User,applied_for
+from models import Jobs,User,Applied
 from flask_jwt_extended import create_access_token,get_jwt_identity,jwt_required,create_refresh_token
 from datetime import datetime 
 
@@ -146,10 +146,14 @@ def applied(id):
         return jsonify({"msg":"The Job does not exist"}),404
     
     user_in=get_jwt_identity()
-    user_already=applied_for.query.filter_by(job_id=id,username=user_in['username']).first()
+    user_already=Applied.query.filter_by(job_id=id,username=user_in['username']).first()
     if user_already:
         return jsonify({"error":"You have already applied for this role"}),404
-    user_applied=applied_for(username=user_in['username'],name=user_in['name'],email=user_in['email'],job_id=id)
+    
+    data=request.get_json()
+    proposal=data.get("proposal")
+    bid_amount=data.get("bid_amount")
+    user_applied=Applied(username=user_in['username'],name=user_in['name'],email=user_in['email'],job_id=id,proposal=proposal,bid_amount=bid_amount,freelancer_id=user_in['id'])
     db.session.add(user_applied)
     db.session.commit()
     return jsonify({"msg":"You have applied for the Job"}),201
@@ -160,7 +164,7 @@ def applied_jobs(id):
     user_in=get_jwt_identity()
     if user_in['role'] not in ["admin","professional"]:
         return jsonify({"msg":"You are not authorized to check this out"}),404
-    all_applies=applied_for.query.filter_by(job_id=id).all()
+    all_applies=Applied.query.filter_by(job_id=id).all()
     if all_applies is None:
         return jsonify({"msg":"No one has applied for this job"})
     result=[apply.to_json() for apply in all_applies]
@@ -174,12 +178,14 @@ def update_status(id):
     if user_in['role'] not in ['admin','professional']:
         return jsonify({"msg":"You are not authotized for this page"}),401
     
-    applied=applied_for.query.get(id)
-    if applied is None:
+    applied_change=Applied.query.get(id)
+    if applied_change is None:
         return jsonify({"msg":"The paticular job doesnt exist"}),404
     
     data=request.get_json()
-    applied.status=data.get("status",applied.status)
+    print(data)
+
+    applied_change.status=data.get("status",applied_change.status)
     db.session.commit()
     return jsonify({"msg":"The status has been updated"}),200
 
@@ -187,7 +193,17 @@ def update_status(id):
 @jwt_required()
 def view_profile():
     user_in=get_jwt_identity()
-    return jsonify(user_in),200
+    if user_in['role']=='freelancer':
+        proposals=Applied.query.filter_by(freelancer_id=user_in['id']).all()
+        if proposals is None:
+            return jsonify({"msg":"You have not applied for any job"}),404
+        result=[apply.to_json() for apply in proposals]
+    elif user_in['role']=='professional':
+        jobs=Jobs.query.filter_by(user_id=user_in['id']).all()
+        if jobs is None:
+            return jsonify({"msg":"You have not posted any job"}),404
+        result=[job.to_json() for job in jobs]
+    return jsonify(user_in,result),200
 
 @app.route("/api/refresh",methods=['GET'])
 @jwt_required(refresh=True)
@@ -196,6 +212,4 @@ def refresh():
     new_access_token=create_access_token(identity=identity)
 
     return jsonify({"access_token":new_access_token}),200
-# @app.route("/api/logout",methods=['POST'])
-# @jwt_required()
-# def logout()
+
