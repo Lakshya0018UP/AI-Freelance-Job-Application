@@ -273,7 +273,7 @@ def recommend_jobs(resume, jobs, top_n=3):
 
 
 @app.route('/api/upload_resume', methods=['POST'])
-#@jwt_required()
+@jwt_required()
 def upload_resume():
         if 'resume' not in request.files:
             return jsonify({"error": "No file uploaded"}), 400
