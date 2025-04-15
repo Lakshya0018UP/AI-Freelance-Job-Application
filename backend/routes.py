@@ -4,6 +4,11 @@ from flask import request, jsonify
 from models import Jobs,User,Applied
 from flask_jwt_extended import create_access_token,get_jwt_identity,jwt_required,create_refresh_token
 from datetime import datetime 
+import os
+import fitz
+import docx
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
 
 #Get all Jobs
 
@@ -218,3 +223,80 @@ def refresh():
 
     return jsonify({"access_token":new_access_token}),200
 
+
+# ------------ Resume Utilities ------------
+ideal_keywords = [
+    "python", "flask", "django", "rest api", "sql",
+    "html", "css", "javascript", "data scraping", "automation"
+]
+
+def extract_text(file_path):
+    if file_path.endswith('.pdf'):
+        return extract_text_from_pdf(file_path)
+    elif file_path.endswith('.docx'):
+        return extract_text_from_docx(file_path)
+    elif file_path.endswith('.txt'):
+        with open(file_path, 'r', encoding='utf-8') as f:
+            return f.read()
+    return ""
+
+def extract_text_from_pdf(file_path):
+    text = ""
+    with fitz.open(file_path) as doc:
+        for page in doc:
+            text += page.get_text()
+    return text
+
+def extract_text_from_docx(file_path):
+    doc = docx.Document(file_path)
+    return "\n".join([para.text for para in doc.paragraphs])
+
+def calculate_resume_score(resume, keywords):
+    resume = resume.lower()
+    matched_keywords = [kw for kw in keywords if kw in resume]
+    score = (len(matched_keywords) / len(keywords)) * 100
+    return round(score, 2), matched_keywords
+
+def recommend_jobs(resume, jobs, top_n=3):
+    corpus = [resume] + [job.description for job in jobs]
+    vectorizer = TfidfVectorizer(stop_words='english')
+    tfidf_matrix = vectorizer.fit_transform(corpus)
+
+    similarities = cosine_similarity(tfidf_matrix[0:1], tfidf_matrix[1:]).flatten()
+    job_scores = sorted(zip(jobs, similarities), key=lambda x: x[1], reverse=True)
+    
+    return [{
+        "title": job.title,
+        "description": job.description,
+        "similarity_score": round(score * 100, 2)
+    } for job, score in job_scores[:top_n]]
+
+
+@app.route('/api/upload_resume', methods=['POST'])
+#@jwt_required()
+def upload_resume():
+        if 'resume' not in request.files:
+            return jsonify({"error": "No file uploaded"}), 400
+
+        file = request.files['resume']
+        filename = file.filename
+
+        if not filename.lower().endswith(('.pdf', '.docx', '.txt')):
+            return jsonify({"error": "Unsupported file type"}), 400
+
+        file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        file.save(file_path)
+
+        resume_text = extract_text(file_path)
+        if not resume_text.strip():
+            return jsonify({"error": "Could not extract resume text"}), 500
+
+        jobs = Jobs.query.all()
+        score, matched_keywords = calculate_resume_score(resume_text, ideal_keywords)
+        recommendations = recommend_jobs(resume_text, jobs)
+
+        return jsonify({
+            "resume_score": score,
+            "matched_keywords": matched_keywords,
+            "recommended_jobs": recommendations
+        })

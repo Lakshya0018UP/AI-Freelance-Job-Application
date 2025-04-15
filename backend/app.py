@@ -11,6 +11,7 @@ CORS(app)
 app.config['SQLALCHEMY_DATABASE_URI']="sqlite:///data.db"
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS']=False
 app.config['SECRET_KEY']="SUPER-SECRET-KEY"
+app.config['UPLOAD_FOLDER']='uploads'
 #app.config['JWT_TOKEN_LOCATION'] = ['headers', 'query_string']
 app.config["JWT_ALGORITHM"] = "HS256"  # Ensure consistency
 app.config["JWT_TOKEN_LOCATION"] = ["headers", "cookies"]
