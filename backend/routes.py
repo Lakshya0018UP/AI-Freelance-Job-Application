@@ -224,12 +224,89 @@ def refresh():
     return jsonify({"access_token":new_access_token}),200
 
 
-# ------------ Resume Utilities ------------
+# # ------------ Resume Utilities ------------
+# ideal_keywords = [
+#     "python", "flask", "django", "rest api", "sql",
+#     "html", "css", "javascript", "data scraping", "automation",'java','nodejs',
+#     "aws", "azure", "docker", "kubernetes", "git","ci/cd",'github'
+# ]
+
+# def extract_text(file_path):
+#     if file_path.endswith('.pdf'):
+#         return extract_text_from_pdf(file_path)
+#     elif file_path.endswith('.docx'):
+#         return extract_text_from_docx(file_path)
+#     elif file_path.endswith('.txt'):
+#         with open(file_path, 'r', encoding='utf-8') as f:
+#             return f.read()
+#     return ""
+
+# def extract_text_from_pdf(file_path):
+#     text = ""
+#     with fitz.open(file_path) as doc:
+#         for page in doc:
+#             text += page.get_text()
+#     return text
+
+# def extract_text_from_docx(file_path):
+#     doc = docx.Document(file_path)
+#     return "\n".join([para.text for para in doc.paragraphs])
+
+# def calculate_resume_score(resume, keywords):
+#     resume = resume.lower()
+#     matched_keywords = [kw for kw in keywords if kw in resume]
+#     score = (len(matched_keywords) / len(keywords)) * 100
+#     return round(score, 2), matched_keywords
+
+# def recommend_jobs(resume, jobs, top_n=3):
+#     corpus = [resume] + [job.description for job in jobs]
+#     vectorizer = TfidfVectorizer(stop_words='english')
+#     tfidf_matrix = vectorizer.fit_transform(corpus)
+
+#     similarities = cosine_similarity(tfidf_matrix[0:1], tfidf_matrix[1:]).flatten()
+#     job_scores = sorted(zip(jobs, similarities), key=lambda x: x[1], reverse=True)
+    
+#     return [{
+#         "title": job.title,
+#         "description": job.description,
+#         "similarity_score": round(score * 100, 2)
+#     } for job, score in job_scores[:top_n]]
+
+
+# @app.route('/api/upload_resume', methods=['POST'])
+# @jwt_required()
+# def upload_resume():
+#         if 'resume' not in request.files:
+#             return jsonify({"error": "No file uploaded"}), 400
+
+#         file = request.files['resume']
+#         filename = file.filename
+
+#         if not filename.lower().endswith(('.pdf', '.docx', '.txt')):
+#             return jsonify({"error": "Unsupported file type"}), 400
+
+#         file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+#         file.save(file_path)
+
+#         resume_text = extract_text(file_path)
+#         if not resume_text.strip():
+#             return jsonify({"error": "Could not extract resume text"}), 500
+
+#         jobs = Jobs.query.all()
+#         score, matched_keywords = calculate_resume_score(resume_text, ideal_keywords)
+#         recommendations = recommend_jobs(resume_text, jobs)
+
+#         return jsonify({
+#             "resume_score": score,
+#             "matched_keywords": matched_keywords,
+#             "recommended_jobs": recommendations
+#         })
+
 ideal_keywords = [
     "python", "flask", "django", "rest api", "sql",
-    "html", "css", "javascript", "data scraping", "automation"
+    "html", "css", "javascript", "data scraping", "express.js", "java", "nodejs",
+    "aws", "azure", "docker", "kubernetes", "git", "ci/cd", "github"
 ]
-
 def extract_text(file_path):
     if file_path.endswith('.pdf'):
         return extract_text_from_pdf(file_path)
@@ -264,39 +341,44 @@ def recommend_jobs(resume, jobs, top_n=3):
 
     similarities = cosine_similarity(tfidf_matrix[0:1], tfidf_matrix[1:]).flatten()
     job_scores = sorted(zip(jobs, similarities), key=lambda x: x[1], reverse=True)
-    
+
     return [{
         "title": job.title,
         "description": job.description,
         "similarity_score": round(score * 100, 2)
     } for job, score in job_scores[:top_n]]
 
-
 @app.route('/api/upload_resume', methods=['POST'])
 @jwt_required()
 def upload_resume():
-        if 'resume' not in request.files:
-            return jsonify({"error": "No file uploaded"}), 400
+    # Look for resume file in any form key
+    file = None
+    for f in request.files.values():
+        file = f
+        break
 
-        file = request.files['resume']
-        filename = file.filename
+    if file is None:
+        return jsonify({"error": "No file uploaded. Please upload your resume file using a form field named 'resume'."}), 400
 
-        if not filename.lower().endswith(('.pdf', '.docx', '.txt')):
-            return jsonify({"error": "Unsupported file type"}), 400
+    filename = file.filename
 
-        file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-        file.save(file_path)
+    if not filename.lower().endswith(('.pdf', '.docx', '.txt')):
+        return jsonify({"error": "Unsupported file type. Only PDF, DOCX, and TXT are allowed."}), 400
 
-        resume_text = extract_text(file_path)
-        if not resume_text.strip():
-            return jsonify({"error": "Could not extract resume text"}), 500
+    file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+    file.save(file_path)
 
-        jobs = Jobs.query.all()
-        score, matched_keywords = calculate_resume_score(resume_text, ideal_keywords)
-        recommendations = recommend_jobs(resume_text, jobs)
+    resume_text = extract_text(file_path)
+    if not resume_text.strip():
+        return jsonify({"error": "Could not extract any text from the uploaded resume."}), 500
 
-        return jsonify({
-            "resume_score": score,
-            "matched_keywords": matched_keywords,
-            "recommended_jobs": recommendations
-        })
+    jobs = Jobs.query.all()
+    score, matched_keywords = calculate_resume_score(resume_text, ideal_keywords)
+    recommendations = recommend_jobs(resume_text, jobs)
+
+    return jsonify({
+        "message": "Resume uploaded and processed successfully.",
+        "resume_score": score,
+        "matched_keywords": matched_keywords,
+        "recommended_jobs": recommendations
+    })
